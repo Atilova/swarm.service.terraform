@@ -1,0 +1,6 @@
+# Editors
+.vscode/
+
+# Shell script outputs and generated files
+*.env
+*.log
