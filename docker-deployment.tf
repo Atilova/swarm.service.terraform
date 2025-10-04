@@ -1,8 +1,3 @@
-# resource "docker_network" "service_net" {
-#   name   = "tf-${local.service_name_safe}-net"
-#   driver = "overlay"
-# }
-
 resource "docker_config" "service_configs" {
   for_each = {
     for config in var.config_mounts : config.name => config.value
@@ -37,6 +32,14 @@ resource "docker_service" "service" {
     container_spec {
       image     = local.service_image
       read_only = var.container_config.read_only_fs
+
+      # healthcheck {
+      #   test         = ["CMD-SHELL", "curl -f http://localhost:8000/api/health/ || exit 1"]
+      #   interval     = "7s"
+      #   timeout      = "5s"
+      #   retries      = 3
+      #   start_period = "15s"
+      # }
 
       dynamic "configs" {
         for_each = docker_config.service_configs
@@ -74,9 +77,13 @@ resource "docker_service" "service" {
       }
     }
 
-    # networks_advanced {
-    #   name = docker_network.service_net.id
-    # }
+    dynamic "networks_advanced" {
+      for_each = toset(local.service_networks)
+
+      content = {
+        name = networks_advanced.value
+      }
+    }
   }
 
   mode {
@@ -85,18 +92,33 @@ resource "docker_service" "service" {
     }
   }
 
-  endpoint_spec {
-    ports {
-      target_port    = 80
-      published_port = 8080
-      publish_mode   = "ingress"
-    }
-  }
+  # endpoint_spec {
+  #   ports {
+  #     target_port    = 80
+  #     published_port = 8080
+  #     publish_mode   = "ingress"
+  #   }
+  # }
 
   update_config {
     parallelism = 1
     delay       = "5s"
     order       = "start-first"
+  }
+
+  dynamic "labels" {
+    for_each = {
+      "traefik.enable"                                       = "true"
+      "traefik.http.routers.myapp.rule"                      = "Host(`api-apps.atilova.com`)"
+      "traefik.http.routers.myapp.entrypoints"               = "web"
+      "traefik.http.services.myapp.loadbalancer.server.port" = "8000"
+      "traefik.swarm.lbswarm"                                = "true"
+    }
+
+    content {
+      label = labels.key
+      value = labels.value
+    }
   }
 }
 

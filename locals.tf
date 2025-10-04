@@ -1,14 +1,20 @@
 locals {
+  static_config = {
+    service_bound_networks = [
+      "app",
+    ]
+  }
   service_name_safe = replace(var.service_name, ".", "-")
-  service_image     = "${var.deployment_config.image_registry}${var.deployment_config.image}"
-
+  service_image     = "${var.deployment_config.image_registry}:${var.deployment_config.image}"
+  service_networks = [
+    for network in data.docker_network.service : network.value.id
+  ]
   mounts = {
     secrets = {
       for secret_name, value in data.external.bitwarden_service_secrets_env :
       secret_name => value.result.env
     }
   }
-
   resources = {
     reservation_nano_cpus    = tonumber(replace(var.container_config.resources.reservations.cpus, "m", "")) * 1000000
     reservation_cpu_cores    = (tonumber(replace(var.container_config.resources.reservations.cpus, "m", "")) / 1000)

@@ -8,7 +8,7 @@ locals {
     ]
     service_name     = local.service_name_safe
     service_image    = local.service_image
-    service_networks = []
+    service_networks = local.service_networks
     service_resources = {
       reserve_cpu    = local.resources.reservation_cpu_cores,
       reserve_memory = local.resources.reservation_memory_mib,
@@ -42,7 +42,7 @@ locals {
 resource "null_resource" "pre_deployment_jobs" {
   provisioner "local-exec" {
     quiet       = true
-    interpreter = ["/bin/bash", "-c"]
+    interpreter = ["/usr/bin/env", "bash", "-c"]
 
     command = templatefile(
       "${path.module}/templates/pre_deployment_job.sh.tpl",
