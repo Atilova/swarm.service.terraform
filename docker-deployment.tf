@@ -33,13 +33,17 @@ resource "docker_service" "service" {
       image     = local.service_image
       read_only = var.container_config.read_only_fs
 
-      # healthcheck {
-      #   test         = ["CMD-SHELL", "curl -f http://localhost:8000/api/health/ || exit 1"]
-      #   interval     = "7s"
-      #   timeout      = "5s"
-      #   retries      = 3
-      #   start_period = "15s"
-      # }
+      dynamic "healthcheck" {
+        for_each = var.healthcheck.enabled ? [1] : []
+
+        content {
+          test         = var.healthcheck.command
+          interval     = var.healthcheck.interval
+          timeout      = var.healthcheck.timeout
+          retries      = var.healthcheck.retries
+          start_period = var.healthcheck.start_period
+        }
+      }
 
       dynamic "configs" {
         for_each = docker_config.service

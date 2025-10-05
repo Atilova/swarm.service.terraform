@@ -95,7 +95,23 @@ variable "ingress" {
       }
     )
   })
+  default     = {}
   description = "Configuration for service ingress, including optional node ports and HTTP endpoints"
+}
+
+variable "healthcheck" {
+  type = object({
+    enabled      = bool
+    command      = optional(list(string), ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"])
+    interval     = optional(string, "7s")
+    timeout      = optional(string, "5s")
+    retries      = optional(number, 3)
+    start_period = optional(string, "15s")
+  })
+  default = {
+    enabled = false
+  }
+  description = "Container healthcheck configuration"
 }
 
 variable "pre_deployment_jobs" {
