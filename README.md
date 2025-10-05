@@ -1,27 +1,39 @@
-## TODO
+# Swarm Service Terraform
+Module for deploying Docker-based applications to a Swarm cluster using Terraform.
 
 
-## Requirements
-### json2env Util
-```sh
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/m-lamonaca/json-to-env/releases/download/0.3.1/json2env-installer.sh | sh
-```
+## TODO: Features
 
-### Bitwarden CLI
-```sh
-sudo snap install bw
-```
+
+## Pre-requisites
+1. [Bash >= 4](https://www.gnu.org/software/bash/)
+2. [json2env](https://github.com/m-lamonaca/json-to-env)
+    ```sh
+    curl --proto '=https' --tlsv1.2 -LsSf https://github.com/m-lamonaca/json-to-env/releases/download/0.3.1/json2env-installer.sh | sh
+    ```
+3. [Bitwarden CLI](http://github.com/bitwarden/cli)
+    (Depends whether you use [embedded_client](https://registry.terraform.io/providers/maxlaverse/bitwarden/latest/docs#client-implementation) in provider configuration or not)
+
+
+## Required Terraform Providers
+| Provider                                                                                    | Version     |
+|---------------------------------------------------------------------------------------------|-------------|
+| [hashicorp/null](https://registry.terraform.io/providers/hashicorp/null/latest)             | `~> 3.2`    |
+| [hashicorp/external](https://registry.terraform.io/providers/hashicorp/external/latest)     | `~> 2.3`    |
+| [kreuzwerker/docker](https://registry.terraform.io/providers/kreuzwerker/docker/latest)     | `~> 3.6`    |
+| [maxlaverse/bitwarden](https://registry.terraform.io/providers/maxlaverse/bitwarden/latest) | `~> 0.15.0` |
 
 
 ## Example Usage
-```hcl
+```terraform-hcl
 module "service" {
   source = "git@github.com:Atilova/swarm.service.terraform.git?ref=master"
 
-  service_name = "some.bot.api"
+  service_name = "draft.python.api"
   deployment_config = {
-    replicas = 2
-    image    = "python:3.12-alpine"
+    replicas       = 2
+    image          = "3.12-alpine"
+    image_registry = "python"
   }
   container_config = {
     read_only_fs = true
@@ -35,6 +47,28 @@ module "service" {
         memory = "256Mi"
       }
     }
+  }
+  ingress = {
+    external = {
+      http = {
+        container_port = 8000
+        exposed_urls = {
+          "/api/v1/" = "/api/v1/"
+          "/metrics" = "/metrics"
+        }
+      }
+    }
+    internal = {
+      http = {
+        container_port = 8000
+        exposed_urls = {
+          "/" = "/"
+        }
+      }
+    }
+  }
+  healthcheck = {
+    enabled = true
   }
   pre_deployment_jobs = [
     {
@@ -68,28 +102,27 @@ module "service" {
 ```
 
 
-# Example Pre-Deployment Job Output:
-```log
-module.service.null_resource.pre_deployment_jobs (local-exec): ═══════════════════════════════════════════════════════════════════════════════════
-module.service.null_resource.pre_deployment_jobs (local-exec): [INFO] Found 1 pre-deployment job(s)
-module.service.null_resource.pre_deployment_jobs (local-exec): [INFO] Mounting 1 config(s)
-module.service.null_resource.pre_deployment_jobs (local-exec): [INFO] Mounting 2 secret(s)
-module.service.null_resource.pre_deployment_jobs (local-exec): [INFO] [1/1] (tf-pre-deployment-some-bot-api-1-182def028613b13a): Starting pre-deployment job
-module.service.null_resource.pre_deployment_jobs (local-exec): [CMD] docker service create --restart-condition=none --replicas=1 --detach --reserve-memory=128M --limit-memory=256M --reserve-cpu=0.1 --limit-cpu=0.2 --env cf__test__config=false --config source=tf-some-bot-api-well-known-jwks-json-54f1ee013b2796f1\,target=/run/configs/well-known.jwks.json\,mode=444 --secret source=tf-some-bot-api-app-f7ad8a63a88825ff\,target=/run/secrets/app.env\,mode=444 --secret source=tf-some-bot-api-database-a4d48d937f894ddb\,target=/run/secrets/database.env\,mode=444 --config source=tf-pre-deployment-some-bot-api-1-182def028613b13a.sh\,target=/srv/execute.sh\,mode=0755 --name tf-pre-deployment-some-bot-api-1-182def028613b13a docker.io/library/python:3.12-alpine /bin/sh /srv/execute.sh
-module.service.null_resource.pre_deployment_jobs (local-exec): [INFO] [1/1] (tf-pre-deployment-some-bot-api-1-182def028613b13a): Found task: qwnz0o20vd9wgspph2l9csawy for service 87gljq7bukntgtvvi06f8gzig
-module.service.null_resource.pre_deployment_jobs (local-exec): [INFO] [1/1] (tf-pre-deployment-some-bot-api-1-182def028613b13a): Task qwnz0o20vd9wgspph2l9csawy is starting; State: 'starting'
-module.service.null_resource.pre_deployment_jobs (local-exec): [INFO] [1/1] (tf-pre-deployment-some-bot-api-1-182def028613b13a): Task qwnz0o20vd9wgspph2l9csawy has finished; State: 'complete'
-module.service.null_resource.pre_deployment_jobs (local-exec): [INFO] [1/1] (tf-pre-deployment-some-bot-api-1-182def028613b13a): Attaching to container 6534173633c6 to capture logs; Timeout: 30s
+## Ingress Configuration
+It allows configuring HTTP ingress for your service using Traefik.
+You can define **external** and **internal** endpoints, map exposed URLs to container paths, and control block vs direct forwarding.
 
-module.service.null_resource.pre_deployment_jobs (local-exec): ═══════════════════════════════════════════════════════════════════════════════════
-module.service.null_resource.pre_deployment_jobs (local-exec): [LOG] [1/1] (tf-pre-deployment-some-bot-api-1-182def028613b13a): Python 3.12.11
-module.service.null_resource.pre_deployment_jobs (local-exec): [LOG] [1/1] (tf-pre-deployment-some-bot-api-1-182def028613b13a): cf__test__config=false
+### Forwarding examples
+| From URL (Exposed)  | To URL (Container) | Example Request    | Container Received    |
+|---------------------|--------------------|--------------------|-----------------------|
+| /api/v2/            | /api/v2/           | /api/v1/config/    | /api/v1/config/       |
+| /api/v1/            | /api/              | /api/v1/config/    | /api/config/          |
+| /api/v1/            | /api               | /api/v1/config/    | /api/config/          |
+| /metrics            | /metrics           | /metrics           | /metrics              |
+| /metrics            | /metrics           | /metrics/          | /metrics/             |
+| /rule               | /endpoint/         | /rule              | /endpoint/            |
+| /rule               | /endpoint/         | /rule/             | /endpoint/            |
+| /                   | /                  | /anything          | /anything             |
 
-module.service.null_resource.pre_deployment_jobs (local-exec): ═══════════════════════════════════════════════════════════════════════════════════
-module.service.null_resource.pre_deployment_jobs (local-exec): [INFO] [1/1] (tf-pre-deployment-some-bot-api-1-182def028613b13a): Task 87gljq7bukntgtvvi06f8gzig has finished successfully! State: 'complete'
-module.service.null_resource.pre_deployment_jobs (local-exec): [INFO] [1/1] (tf-pre-deployment-some-bot-api-1-182def028613b13a): Service 87gljq7bukntgtvvi06f8gzig removed successfully
-module.service.null_resource.pre_deployment_jobs (local-exec): [INFO] [1/1] (tf-pre-deployment-some-bot-api-1-182def028613b13a): Pre-deployment job has finished successfully!
-module.service.null_resource.pre_deployment_jobs (local-exec): [INFO] All pre-deployment jobs completed successfully!
+> **Block mode**: when the `from` URL ends with `/`
+prefix forwarding (e.g., `/api/v1/*` → `/api/*`).
+---
+> **Direct mode**: when the `from` URL does not end with `/` →
+exact match forwarding (e.g., `/metrics` → `/metrics`, `/rule` → `/endpoint/`).
 
-module.service.null_resource.pre_deployment_jobs (local-exec): ═══════════════════════════════════════════════════════════════════════════════════
-```
+Trailing slash of the `to` path is respected in **direct mode only**;
+in block mode, the remainder of the request path is appended automatically.
