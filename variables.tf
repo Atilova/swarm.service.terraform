@@ -44,6 +44,60 @@ variable "container_config" {
   }
 }
 
+variable "ingress" {
+  type = object({
+    node = optional(
+      list(object({
+        protocol       = optional(string, "tcp")
+        container_port = number
+        node_port      = number
+      })),
+      []
+    )
+    external = optional(
+      object({
+        http = object({
+          enabled        = optional(bool, true)
+          container_port = optional(number, 8000)
+          exposed_urls = optional(map(string), {
+            "/api/v1/" = "/api/v1/"
+          })
+        })
+      }),
+      {
+        http = {
+          enabled        = true
+          container_port = 8000
+          exposed_urls = {
+            "/api/v1/" = "/api/v1/"
+          }
+        }
+      }
+    )
+    internal = optional(
+      object({
+        http = object({
+          enabled        = optional(bool, true)
+          container_port = optional(number, 8000)
+          exposed_urls = optional(map(string), {
+            "/" = "/"
+          })
+        })
+      }),
+      {
+        http = {
+          enabled        = true
+          container_port = 8000
+          exposed_urls = {
+            "/" = "/"
+          }
+        }
+      }
+    )
+  })
+  description = "Configuration for service ingress, including optional node ports and HTTP endpoints"
+}
+
 variable "pre_deployment_jobs" {
   type = list(object({
     command = string

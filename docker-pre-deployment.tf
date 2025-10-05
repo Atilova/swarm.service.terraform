@@ -8,7 +8,7 @@ locals {
     ]
     service_name     = local.service_name_safe
     service_image    = local.service_image
-    service_networks = []
+    service_networks = local.service_networks
     service_resources = {
       reserve_cpu    = local.resources.reservation_cpu_cores,
       reserve_memory = local.resources.reservation_memory_mib,
@@ -18,14 +18,14 @@ locals {
     service_read_only_fs = var.container_config.read_only_fs
     service_env          = var.env
     service_configs = [
-      for key, value in docker_config.service_configs : {
+      for key, value in docker_config.service : {
         source = value.name
         target = "/run/configs/${key}"
         mode   = 0444
       }
     ]
     service_secrets = [
-      for key, value in docker_secret.service_secrets : {
+      for key, value in docker_secret.service : {
         source = value.name
         target = "/run/secrets/${key}.env"
         mode   = 0444
@@ -42,7 +42,7 @@ locals {
 resource "null_resource" "pre_deployment_jobs" {
   provisioner "local-exec" {
     quiet       = true
-    interpreter = ["/bin/bash", "-c"]
+    interpreter = ["/usr/bin/env", "bash", "-c"]
 
     command = templatefile(
       "${path.module}/templates/pre_deployment_job.sh.tpl",
@@ -55,7 +55,7 @@ resource "null_resource" "pre_deployment_jobs" {
   }
 
   depends_on = [
-    docker_secret.service_secrets,
-    docker_config.service_configs
+    docker_secret.service,
+    docker_config.service
   ]
 }
