@@ -72,10 +72,10 @@ get_docker_service_base_cmd() {
     echo "--replicas=1"
     echo "--detach"
 
-    echo "--reserve-memory=${service_resources.reserve_memory}M"
-    echo "--limit-memory=${service_resources.limit_memory}M"
-    echo "--reserve-cpu=${service_resources.reserve_cpu}"
-    echo "--limit-cpu=${service_resources.limit_cpu}"
+    echo "--reserve-cpu=${service_resources_mib_cores.reserve_cpu}"
+    echo "--reserve-memory=${service_resources_mib_cores.reserve_memory}MiB"
+    echo "--limit-cpu=${service_resources_mib_cores.limit_cpu}"
+    echo "--limit-memory=${service_resources_mib_cores.limit_memory}MiB"
 
     %{ for network in service_networks ~}
     echo "--network=${network}"
@@ -402,7 +402,7 @@ main() {
     local job_hash=$(date +%s | sha256sum | cut -c1-16)
     local job_name="tf-pre-deployment-${service_name}-${idx+1}-$job_hash"
     local job_timeout="${job.timeout}"
-    local job_execute_config_name="$job_name.sh"
+    local job_execute_config_name="$job_name-sh"
     local job_progress="[${idx+1}/$total_jobs] ($job_name):"
 
     log_info "$job_progress Starting pre-deployment job"
@@ -415,7 +415,8 @@ main() {
     local -a docker_cmd=( "$${docker_base_cmd[@]}" )
     docker_cmd+=( "--config" "source=$job_execute_config_name,target=/srv/execute.sh,mode=0755" )
     docker_cmd+=( "--name" "$job_name" )
-    docker_cmd+=( "$service_image" "/bin/sh" "/srv/execute.sh" )
+    docker_cmd+=( "--entrypoint" "/bin/sh" )
+    docker_cmd+=( "$service_image" "/srv/execute.sh" )
 
     log_cmd "$(printf '%q ' "$${docker_cmd[@]}")"
 
@@ -429,7 +430,7 @@ main() {
 
     remove_docker_service "$service_id" "$job_execute_config_name" "$job_progress"
     log_info "$job_progress Pre-deployment job has finished successfully!"
-    %{ endfor }
+    %{ endfor ~}
 }
 
 log_magenta_separator
