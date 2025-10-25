@@ -1,37 +1,15 @@
-resource "docker_config" "service" {
-  for_each = {
-    for config in var.config_mounts : config.name => config.value
-  }
-
-  name = "tf-${local.service_name_safe}-${replace(each.key, ".", "-")}-${substr(sha256(each.value), 0, 16)}"
-  data = base64encode(each.value)
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-resource "docker_secret" "service" {
-  for_each = local.mounts.secrets
-
-  name = "tf-${local.service_name_safe}-${replace(each.key, ".", "-")}-${substr(sha256(each.value), 0, 16)}"
-  data = base64encode(each.value)
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
 resource "docker_service" "service" {
-  name = local.service_name_safe
+  name = local.base.service_name
   depends_on = [
+    docker_config.service,
+    docker_secret.service,
     null_resource.pre_deployment_jobs
   ]
 
   task_spec {
     container_spec {
-      image     = local.service_image
-      read_only = var.container_config.read_only_fs
+      image     = local.base.service_image
+      read_only = local.base.service_read_only_fs
 
       dynamic "healthcheck" {
         for_each = var.healthcheck.enabled ? [1] : []
@@ -46,43 +24,47 @@ resource "docker_service" "service" {
       }
 
       dynamic "configs" {
-        for_each = docker_config.service
+        for_each = {
+          for config in local.base.service_configs : config.source_id => config
+        }
 
         content {
-          config_id   = configs.value.id
-          config_name = configs.value.name
-          file_name   = "/run/configs/${configs.key}"
-          file_mode   = 0444
+          config_id   = configs.value.source_id
+          config_name = configs.value.source
+          file_name   = configs.value.target
+          file_mode   = configs.value.mode
         }
       }
 
       dynamic "secrets" {
-        for_each = docker_secret.service
+        for_each = {
+          for secret in local.base.service_secrets : secret.source_id => secret
+        }
 
         content {
-          secret_id   = secrets.value.id
-          secret_name = secrets.value.name
-          file_name   = "/run/secrets/${secrets.key}.env"
-          file_mode   = 0444
+          secret_id   = secrets.value.secret_id
+          secret_name = secrets.value.source
+          file_name   = secrets.value.target
+          file_mode   = secrets.value.mode
         }
       }
 
-      env = var.env
+      env = local.base.service_env
     }
 
     resources {
       reservation {
-        nano_cpus    = local.resources.reservation_nano_cpus
-        memory_bytes = local.resources.reservation_memory_bytes
+        nano_cpus    = local.base.service_resources_bytes_nanos.reserve_cpu
+        memory_bytes = local.base.service_resources_bytes_nanos.reserve_memory
       }
       limits {
-        nano_cpus    = local.resources.limit_nano_cpus
-        memory_bytes = local.resources.limit_memory_bytes
+        nano_cpus    = local.base.service_resources_bytes_nanos.limit_cpu
+        memory_bytes = local.base.service_resources_bytes_nanos.limit_memory
       }
     }
 
     dynamic "networks_advanced" {
-      for_each = toset(local.service_networks)
+      for_each = toset(local.base.service_networks)
 
       content {
         name = networks_advanced.value

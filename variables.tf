@@ -123,14 +123,14 @@ variable "pre_deployment_jobs" {
   description = "List of jobs to execute before the service is deployed"
 }
 
-# TODO: is not avaible now, it is not clear how to run cronjobs in swarm
-variable "cron_jobs" {
-  type = map(object({
+variable "cronjobs" {
+  type = list(object({
+    name     = string
     command  = string
     schedule = string
   }))
-  default     = {}
-  description = "Map of scheduled jobs that run periodically within the service"
+  default     = []
+  description = "List of scheduled jobs that run periodically within the service"
 }
 
 variable "env" {
