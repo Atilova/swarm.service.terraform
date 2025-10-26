@@ -28,9 +28,4 @@ resource "null_resource" "pre_deployment_jobs" {
   triggers = {
     always_run = timestamp()
   }
-
-  depends_on = [
-    docker_config.service,
-    docker_secret.service
-  ]
 }

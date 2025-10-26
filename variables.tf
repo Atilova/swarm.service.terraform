@@ -131,6 +131,14 @@ variable "cronjobs" {
   }))
   default     = []
   description = "List of scheduled jobs that run periodically within the service"
+
+  validation {
+    condition = alltrue([
+      for cronjob in var.cronjobs :
+      length(cronjob.name) <= 20 && can(regex("^[a-zA-Z0-9._-]+$", cronjob.name))
+    ])
+    error_message = "Name must be 20 characters or fewer and match [a-zA-Z0-9._-]"
+  }
 }
 
 variable "env" {

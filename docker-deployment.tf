@@ -1,10 +1,5 @@
 resource "docker_service" "service" {
   name = local.base.service_name
-  depends_on = [
-    docker_config.service,
-    docker_secret.service,
-    null_resource.pre_deployment_jobs
-  ]
 
   task_spec {
     container_spec {
@@ -110,6 +105,10 @@ resource "docker_service" "service" {
       value = labels.value
     }
   }
+
+  depends_on = [
+    null_resource.pre_deployment_jobs
+  ]
 }
 
 # TODO: Clean up old containers, as some remain stopped after a rollout.
