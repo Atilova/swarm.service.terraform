@@ -81,6 +81,18 @@ module "service" {
       command = "cat /run/configs/well-known.jwks.json"
     }
   ]
+  cronjobs = [
+    {
+      name     = "RunEveryMinute"
+      schedule = "* * * * *"
+      command  = "echo \"$(date): Run every minute\""
+    },
+    {
+      name     = "RunEveryTwoMinutes"
+      schedule = "*/2 * * * *"
+      command  = "echo \"$(date): Run every two minutes\""
+    }
+  ]
   env = {
     "cf__test__config" = "false"
   }

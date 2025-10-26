@@ -47,13 +47,6 @@ resource "local_file" "cronjobs_deployment_stack" {
     "${path.module}/templates/cronjobs_deployment_stack.yaml.tpl",
     local.cronjobs_deployment_config
   )
-
-  depends_on = [
-    docker_config.service,
-    docker_secret.service,
-    docker_config.cronjobs_deployment_commands,
-    null_resource.pre_deployment_jobs
-  ]
 }
 
 resource "null_resource" "apply_cronjobs_stack" {
@@ -65,7 +58,7 @@ resource "null_resource" "apply_cronjobs_stack" {
       #!/bin/bash
       set -euo pipefail
 
-      docker stack deploy \
+      timeout 300s docker stack deploy \
         -c ${local.cronjobs_deployment_stack_file} \
         --detach \
         --prune \
@@ -73,25 +66,12 @@ resource "null_resource" "apply_cronjobs_stack" {
     EOT
   }
 
-  triggers = {
-    stack_sha = sha256(local_file.cronjobs_deployment_stack.content)
-  }
-
-  depends_on = [
-    local_file.cronjobs_deployment_stack
-  ]
-}
-
-resource "null_resource" "remove_cronjobs_stack_on_destroy" {
-  triggers = {
-    stack_name = local.cronjobs_deployment_stack_name
-  }
-
   provisioner "local-exec" {
     when        = destroy
     quiet       = true
     interpreter = ["/usr/bin/env", "bash", "-c"]
 
+    # Destroy stack before updating, resolves: https://github.com/moby/moby/issues/39891
     command = <<-EOT
       #!/bin/bash
       set -euo pipefail
@@ -99,4 +79,16 @@ resource "null_resource" "remove_cronjobs_stack_on_destroy" {
       docker stack rm ${self.triggers.stack_name} || true
     EOT
   }
+
+  triggers = {
+    stack_name = local.cronjobs_deployment_stack_name
+    stack_sha  = sha256(local_file.cronjobs_deployment_stack.content)
+  }
+
+  depends_on = [
+    docker_config.service,
+    docker_secret.service,
+    docker_config.cronjobs_deployment_commands,
+    null_resource.pre_deployment_jobs
+  ]
 }
